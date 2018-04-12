@@ -208,13 +208,19 @@ def read_hotels(DATABASE):
         
         for hotel_row in retrieved_hotels:
             hotels.append(Hotel(name=hotel_row[0], number_of_rooms=hotel_row[1]))
+            """
             cursor.execute('''SELECT bookings.date, bookings.room_id FROM bookings 
                             LEFT JOIN hotels ON bookings.hotel_id = hotels.hotel_id 
+                            WHERE hotels.name = ? ''', (hotels[-1].name,))
+            """
+            cursor.execute('''SELECT bookings.date, rooms.room_number FROM bookings 
+                            LEFT JOIN hotels ON bookings.hotel_id = hotels.hotel_id 
+                            LEFT JOIN rooms ON bookings.room_id = rooms.room_id
                             WHERE hotels.name = ? ''', (hotels[-1].name,))
             date_and_room = cursor.fetchall()
             for date,room in date_and_room:
                 date_formatted = datetime.strptime(date, '%Y-%m-%d %H:%M:%S').date()
-                hotels[-1].rooms[room-1].booked_dates.append(date_formatted) #-1 to compensate the difference between SQL ids and array indexes in py
+                hotels[-1].rooms[room].booked_dates.append(date_formatted)
             
                 
 
@@ -291,6 +297,28 @@ def save_to_database(hotels, DATABASE):
     except Exception as e:
         raise e        
 
+def view_occupation(hotels):
+    '''
+    prompt for a hotel and book a room
+    '''
+    if len(hotels) == 0:
+        print("no hotels available")
+        return
+
+    see_hotels(hotels) #show hotels and select one
+    
+    while True:
+        try:
+            hotel_number = int(input("Pick a hotel: "))
+            selected_hotel = hotels[hotel_number]
+            break
+        except:
+            print("wrong input")
+            continue
+    for room in selected_hotel.rooms:
+        list_of_dates = map(datetime.strftime('%d-%M-%y'),room.booked_dates)
+        print(f"Room {room.room_number} occupation: {list_of_dates}")
+
 
 #program start
 
@@ -311,7 +339,7 @@ while menu:
     if selection == 1:
         book_a_room(hotels)
     elif selection == 2:
-        hotel.see_occupation()
+        view_occupation(hotels)
     elif selection == 3:
         add_hotel(hotels)
     elif selection == 4:
