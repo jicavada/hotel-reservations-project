@@ -4,6 +4,7 @@ import datetime
 import os
 import calendar
 from datetime import date
+from datetime import datetime
 from datetime import timedelta
 import sqlite3
 
@@ -134,20 +135,35 @@ def ask_yes_or_no(question):
             else:
                 print("Please answer y or n: ")
 
-def book_a_room():
+def book_a_room(hotels):
+    '''
+    prompt for a hotel and book a room
+    '''
+    if len(hotels) == 0:
+        print("no hotels available")
+        return
+
+    see_hotels(hotels) #show hotels and select one
+    
+    while True:
+        try:
+            hotel_number = int(input("Pick a hotel: "))
+            selected_hotel = hotels[hotel_number]
+            break
+        except:
+            print("wrong input")
+            continue
     
     booking = True
     while booking:
         #ask for dates
         (start_date, end_date) = get_dates()
-        #manual imput for testing
-        #start_date = datetime.date(2018,1,1)
-        #end_date = datetime.date(2018,1,3)
 
         #book room in hotel
-        hotel.book(start_date, end_date)
+        selected_hotel.book(start_date, end_date)
         #ask customer if he wants to book anotoher room, else finish program
         booking = ask_yes_or_no("Do you want to book antoher room? y/n: ")
+   
 
 def init_database(db_name):
     try:
@@ -188,12 +204,20 @@ def read_hotels(DATABASE):
         # Get a cursor object
         cursor = db.cursor()
         cursor.execute('''SELECT name, n_rooms FROM hotels''')
-        for hotel in cursor:
-            hotels.append(Hotel(name=hotel[0],number_of_rooms=hotel[1]))
-            cursor.execute('''SELECT room_number FROM rooms''')
-            for row in cursor:
-                hotel.rooms[].room_number = row[0]
-                #####fill the rooms and the bookings###
+        retrieved_hotels = cursor.fetchall()
+        
+        
+        for hotel_row in retrieved_hotels:
+            hotels.append(Hotel(name=hotel_row[0], number_of_rooms=hotel_row[1]))
+            cursor.execute('''SELECT bookings.date, bookings.room_id FROM bookings 
+                            LEFT JOIN hotels ON bookings.hotel_id = hotels.hotel_id 
+                            WHERE hotels.name = ? ''', (hotels[-1].name,))
+            date_and_room = cursor.fetchall()
+            for date,room in date_and_room:
+                date_formatted = datetime.strptime(date, '%Y-%m-%d %H:%M:%S').date()
+                hotels[-1].rooms[room].booked_dates.append(date_formatted)
+            
+                
 
         db.close()
     except Exception as e:
@@ -257,7 +281,7 @@ def save_to_database(hotels, DATABASE):
             hotel_id = int(cursor.fetchone()[0])
             for room in hotel.rooms:
                 cursor.execute('''INSERT INTO rooms VALUES(NULL, ?, ?)''', (hotel_id, room.room_number))
-                room_id = cursor.execute('''SELECT last_insert_rowid()''')
+                cursor.execute('''SELECT last_insert_rowid()''')
                 room_id = int(cursor.fetchone()[0])
                 for single_date in room.booked_dates:
                     cursor.execute('''INSERT INTO bookings VALUES(NULL, ?, ?, ?)''', (hotel_id, room_id, single_date))
@@ -286,7 +310,7 @@ while menu:
 
     selection = option_menu()
     if selection == 1:
-        book_a_room()
+        book_a_room(hotels)
     elif selection == 2:
         hotel.see_occupation()
     elif selection == 3:
