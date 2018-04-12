@@ -164,7 +164,6 @@ def book_a_room(hotels):
         #ask customer if he wants to book anotoher room, else finish program
         booking = ask_yes_or_no("Do you want to book antoher room? y/n: ")
    
-
 def init_database(db_name):
     try:
         # Creates or opens a file called mydb with a SQLite3 DB
@@ -215,7 +214,7 @@ def read_hotels(DATABASE):
             date_and_room = cursor.fetchall()
             for date,room in date_and_room:
                 date_formatted = datetime.strptime(date, '%Y-%m-%d %H:%M:%S').date()
-                hotels[-1].rooms[room].booked_dates.append(date_formatted)
+                hotels[-1].rooms[room-1].booked_dates.append(date_formatted) #-1 to compensate the difference between SQL ids and array indexes in py
             
                 
 
