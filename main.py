@@ -219,7 +219,7 @@ def read_hotels(DATABASE):
                             WHERE hotels.name = ? ''', (hotels[-1].name,))
             date_and_room = cursor.fetchall()
             for date,room in date_and_room:
-                date_formatted = datetime.strptime(date, '%Y-%m-%d %H:%M:%S').date()
+                date_formatted = datetime.strptime(date, '%Y-%m-%d').date()
                 hotels[-1].rooms[room].booked_dates.append(date_formatted)
             
                 
@@ -244,14 +244,20 @@ def add_hotel(hotels):
             hotels.append(Hotel(hotel_name,number_of_rooms))
             break
     
-def see_hotels(hotels):
-    if len(hotels) == 0:
-        print("No hotels to show")
-        return
-    counter =0
-    for hotel in hotels:
-        print(f"{counter}- " + hotel.name)
-        counter += 1
+def see_hotels(DATABASE):
+    try:
+        # Creates or opens a file called mydb with a SQLite3 DB
+        db = sqlite3.connect(DATABASE)
+        # Get a cursor object
+        cursor = db.cursor()
+        cursor.execute('''SELECT name from hotels''')
+        for hotel_names  in cursor.fetchall():
+            print(hotel_names[0])
+
+        db.close()
+    except Exception as e:
+        db.rollback()
+        raise e
 
 def delete_hotel(hotels):
     if len(hotels) == 0:
@@ -323,7 +329,7 @@ def view_occupation(hotels):
 #program start
 
 #create a hotel (later to be read from DB)
-hotel = Hotel(name="Almirante", number_of_rooms=10)
+
 
 DATABASE = "hotel_rooms.db"
 init_database(DATABASE)
@@ -343,7 +349,7 @@ while menu:
     elif selection == 3:
         add_hotel(hotels)
     elif selection == 4:
-        see_hotels(hotels)
+        see_hotels(DATABASE)
     elif selection == 5:
         delete_hotel(hotels)
     elif selection == 6:
