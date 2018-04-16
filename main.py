@@ -84,7 +84,7 @@ def get_dates():
         while True:
             try:
                 entered_date = input("Enter check-in date dd-mm-yyyy:")
-                sdate = datetime.datetime.strptime(entered_date, '%d-%m-%Y')
+                sdate = datetime.strptime(entered_date, '%d-%m-%Y')
                 break
             except:
                 print("wrong date format")
@@ -92,7 +92,7 @@ def get_dates():
         while True:
             try:
                 entered_date = input("Enter check-out date dd-mm-yyyy:")
-                edate = datetime.datetime.strptime(entered_date, '%d-%m-%Y')
+                edate = datetime.strptime(entered_date, '%d-%m-%Y')
                 break
             except:
                 print("wrong date format")
@@ -136,34 +136,14 @@ def ask_yes_or_no(question):
             else:
                 print("Please answer y or n: ")
 
-def book_a_room(hotels):
+def book_a_room(DATABASE):
     '''
     prompt for a hotel and book a room
     '''
-    if len(hotels) == 0:
-        print("no hotels available")
-        return
-
-    see_hotels(hotels) #show hotels and select one
-    
-    while True:
-        try:
-            hotel_number = int(input("Pick a hotel: "))
-            selected_hotel = hotels[hotel_number]
-            break
-        except:
-            print("wrong input")
-            continue
-    
-    booking = True
-    while booking:
-        #ask for dates
-        (start_date, end_date) = get_dates()
-
-        #book room in hotel
-        selected_hotel.book(start_date, end_date)
-        #ask customer if he wants to book anotoher room, else finish program
-        booking = ask_yes_or_no("Do you want to book antoher room? y/n: ")
+    hotel_to_book = get_hotel(DATABASE)
+    (sdate, edate) = get_dates()
+    insert_booking(DATABASE, sdate, edate, hotel_to_book)
+   
    
 def init_database(db_name):
     try:
@@ -245,21 +225,51 @@ def add_hotel(DATABASE):
             db = sqlite3.connect(DATABASE)
             cursor = db.cursor()
             cursor = cursor.execute('''INSERT INTO hotels VALUES(NULL, ?,?)''', (hotel_name, number_of_rooms))
+            cursor.execute('''SELECT last_insert_rowid()''')
+            hotel_id = int(cursor.fetchone()[0])
+            for room_number in range(number_of_rooms):
+                cursor.execute('''INSERT INTO rooms VALUES(NULL, ?, ?)''', (hotel_id, room_number))
             db.commit()
             db.close()
             break
     
 def see_hotels(DATABASE):
     try:
-        # Creates or opens a file called mydb with a SQLite3 DB
+        
         db = sqlite3.connect(DATABASE)
         # Get a cursor object
         cursor = db.cursor()
-        cursor.execute('''SELECT name from hotels''')
-        for hotel_names  in cursor.fetchall():
-            print(hotel_names[0])
-
+        cursor.execute('''SELECT name, hotel_id from hotels''')
+        print("Hotel \t Hotel Id")
+        for hotel_names, hotel_id  in cursor.fetchall():
+            print(hotel_names + '\t' + str(hotel_id))
         db.close()
+    except Exception as e:
+        db.rollback()
+        raise e
+
+def get_hotel(DATABASE):
+    try:
+        hotel_ids = []
+        db = sqlite3.connect(DATABASE)
+        # Get a cursor object
+        cursor = db.cursor()
+        cursor.execute('''SELECT name, hotel_id from hotels''')
+        print("Hotel \t Hotel Id")
+        for hotel_names, hotel_id  in cursor.fetchall():
+            print(hotel_names + '\t' + str(hotel_id))
+            hotel_ids.append(hotel_id)
+        db.close()
+        while True:
+            try:
+                hotel_selected = int(input("Choose a hotel id: "))
+                if hotel_selected not in hotel_ids:
+                    continue
+                else:
+                    return hotel_selected
+            except:
+                print("invalid input")
+
     except Exception as e:
         db.rollback()
         raise e
@@ -310,7 +320,7 @@ def save_to_database(hotels, DATABASE):
 
 def view_occupation(hotels):
     '''
-    prompt for a hotel and book a room
+    view occupied rooms
     '''
     if len(hotels) == 0:
         print("no hotels available")
@@ -330,17 +340,20 @@ def view_occupation(hotels):
         list_of_dates = map(datetime.strftime('%d-%M-%y'),room.booked_dates)
         print(f"Room {room.room_number} occupation: {list_of_dates}")
 
-def insert_booking(DATABASE):
-    sdate = date.today()
-    edate = date.today() + timedelta(days = 3)
-    hotel_id = 1
-    room_id = 1
-    booking_ref = random.randint(1, 1000)
-    
+def insert_booking(DATABASE, sdate, edate, hotel_id):
+    '''
+    INSERTS BOOKING IN DATABASE
+    '''
+    sdate = sdate.strftime('%Y-%m-%d')
+    edate = edate.strftime('%Y-%m-%d')
+    booking_ref = random.randint(1, 10000)
+    room_to_book = room_avl_db(DATABASE, hotel_id, sdate, edate)
+    if not room_to_book:
+        return
     try:
         db = sqlite3.connect(DATABASE)
         cursor = db.cursor()
-        cursor = cursor.execute('''INSERT INTO bookings VALUES(NULL, ?, ?, ?, ?, ?)''', (hotel_id, room_id, sdate, edate, booking_ref))
+        cursor = cursor.execute('''INSERT INTO bookings VALUES(NULL, ?, ?, ?, ?, ?)''', (hotel_id, room_to_book, sdate, edate, booking_ref))
         db.commit()
         db.close()
     except:
@@ -351,7 +364,15 @@ def see_bookings(DATABASE):
     try:
         db = sqlite3.connect(DATABASE)
         cursor = db.cursor()
-        cursor = cursor.execute('''select * from bookings''')
+        #cursor = cursor.execute('''select * from bookings''')
+        cursor = cursor.execute('''
+                                SELECT hotels.name, rooms.room_number, bookings.sdate, bookings.edate, bookings.booking_ref
+                                FROM bookings 
+                                LEFT JOIN hotels 
+                                ON bookings.hotel_id = hotels.hotel_id
+                                LEFT JOIN rooms 
+                                on bookings.room_id = rooms.room_id
+                                ''')
         for row in cursor.fetchall():
             print(row)
         db.commit()
@@ -367,8 +388,8 @@ def delete_booking(DATABASE):
         db = sqlite3.connect(DATABASE)
         cursor = db.cursor()
         while True:
-            booking_id = int(input("Enter booking id to delete:"))
-            cursor.execute('''DELETE FROM bookings WHERE bookings.booking_id = ?''', (booking_id, ))
+            booking_ref = int(input("Enter booking id to delete:"))
+            cursor.execute('''DELETE FROM bookings WHERE bookings.booking_ref = ?''', (booking_ref, ))
             db.commit()
             break
     except Exception as e:
@@ -376,9 +397,25 @@ def delete_booking(DATABASE):
         raise e
     finally:
         db.close()
-        
 
-
+def room_avl_db(DATABASE, hotel_id, sdate, edate):
+    try:
+        db = sqlite3.connect(DATABASE)
+        cursor = db.cursor()
+        cursor.execute('''SELECT room_id FROM rooms WHERE rooms.hotel_id=? AND room_id NOT IN (SELECT room_id FROM bookings
+                        WHERE hotel_id = ? AND (
+                        (? BETWEEN bookings.sdate AND bookings.edate )
+                        OR
+                        (? BETWEEN bookings.sdate AND bookings.edate) 
+                        OR 
+                        (bookings.sdate BETWEEN ? AND ?)))''', (hotel_id, hotel_id, sdate, edate, sdate, edate))
+        result = cursor.fetchall()
+        return result[0][0]
+    except:
+        print("no rooms avilable for this hotel in the selected dates")
+        return 0
+    finally:
+        db.close()
 
 #program start
 
@@ -387,7 +424,7 @@ def delete_booking(DATABASE):
 
 DATABASE = "hotel_rooms.db"
 init_database(DATABASE)
-insert_booking(DATABASE)
+
 
 #not needed anymore
 #hotels = read_hotels(DATABASE)
